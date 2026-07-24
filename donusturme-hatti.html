@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DÖNÜŞTÜRME HATTI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#0d0d0d;
+    --steel:#161616;
+    --steel-2:#1f1f1f;
+    --plate:#242424;
+    --line:#3a3a3a;
+    --safety:#f4c81a;
+    --safety-dim:#8a7212;
+    --safety-deep:#c9970f;
+    --paper:#eae5d8;
+    --paper-dim:#9c9689;
+    --ok:#5fbf6a;
+    --err:#e15a4a;
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1c1c1c 0%, transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, #191919 0%, transparent 55%),
+      var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+    padding:28px 18px 60px;
+    position:relative;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+    pointer-events:none;
+    mix-blend-mode:overlay;
+    z-index:1;
+  }
+  .wrap{ max-width:880px; margin:0 auto; position:relative; z-index:2; }
+
+  /* HEADER */
+  .hazard-strip{
+    height:10px;
+    background:repeating-linear-gradient(135deg, var(--safety) 0 14px, var(--ink) 14px 28px);
+    border-radius:1px;
+    margin-bottom:18px;
+    box-shadow:0 2px 0 rgba(0,0,0,.4);
+  }
+  header{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:22px;
+    padding-bottom:18px;
+    border-bottom:1px dashed var(--line);
+  }
+  .titleblock{ display:flex; flex-direction:column; gap:6px; }
+  h1{
+    font-family:'Anton', sans-serif;
+    font-weight:400;
+    font-size:clamp(34px,6vw,54px);
+    letter-spacing:1px;
+    line-height:.92;
+    margin:0;
+    color:var(--paper);
+    text-shadow: 3px 3px 0 var(--safety-deep);
+  }
+  .subtitle{
+    font-size:12px; letter-spacing:3px; text-transform:uppercase; color:var(--paper-dim);
+  }
+  .plate{
+    background:var(--plate);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:10px 14px;
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--safety);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 3px 0 rgba(0,0,0,.5);
+    white-space:nowrap;
+  }
+
+  /* DROPZONE */
+  .hopper{
+    position:relative;
+    border:2px dashed var(--line);
+    border-radius:var(--radius);
+    background:
+      repeating-linear-gradient(45deg, rgba(244,200,26,0.025) 0 10px, transparent 10px 20px),
+      var(--steel);
+    padding:38px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s, transform .1s;
+  }
+  .hopper.drag{
+    border-color:var(--safety);
+    background:
+      repeating-linear-gradient(45deg, rgba(244,200,26,0.06) 0 10px, transparent 10px 20px),
+      var(--steel);
+    transform:scale(1.003);
+  }
+  .hopper .icon{
+    font-family:'Anton', sans-serif;
+    font-size:15px;
+    letter-spacing:2px;
+    color:var(--safety);
+    display:inline-block;
+    padding:8px 16px;
+    border:2px solid var(--safety);
+    border-radius:var(--radius);
+    margin-bottom:14px;
+  }
+  .hopper p{ margin:4px 0; color:var(--paper-dim); font-size:13px; }
+  .hopper .big{ color:var(--paper); font-size:15px; margin-bottom:2px; }
+  .hopper input{ display:none; }
+  .formats-note{
+    font-size:10.5px; letter-spacing:1px; color:var(--paper-dim); margin-top:12px;
+  }
+
+  /* QUEUE */
+  /* BULK BAR */
+  .bulkbar{
+    display:none;
+    margin-top:20px;
+    background:var(--steel-2);
+    border:1px solid var(--line);
+    border-left:4px solid var(--safety);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    gap:16px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .bulkbar.show{ display:flex; }
+  .bulkbar .label{
+    font-family:'Anton', sans-serif;
+    font-size:11px; letter-spacing:1.5px; color:var(--safety);
+    white-space:nowrap;
+  }
+  .bulk-group{ display:flex; align-items:center; gap:8px; }
+  .bulk-group select{ min-width:150px; }
+  .bulk-group button{
+    background:var(--ink);
+    color:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:7px 12px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .bulk-group button:hover{ border-color:var(--safety); color:var(--safety); }
+  .bulk-count{ font-size:10.5px; color:var(--paper-dim); margin-left:auto; letter-spacing:1px; }
+
+  .queue{ margin-top:26px; display:flex; flex-direction:column; gap:10px; }
+  .item{
+    display:grid;
+    grid-template-columns:auto 1fr auto auto auto;
+    align-items:center;
+    gap:14px;
+    background:var(--steel-2);
+    border:1px solid var(--line);
+    border-left:4px solid var(--safety-dim);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    position:relative;
+    overflow:hidden;
+  }
+  .item.done{ border-left-color:var(--ok); }
+  .item.error{ border-left-color:var(--err); }
+  .item .bar{
+    position:absolute; left:0; top:0; bottom:0; width:0%;
+    background:rgba(244,200,26,.09);
+    transition:width .2s;
+  }
+  .badge{
+    font-family:'Anton', sans-serif;
+    font-size:11px;
+    letter-spacing:1px;
+    background:var(--ink);
+    border:1px solid var(--line);
+    color:var(--safety);
+    padding:6px 8px;
+    border-radius:var(--radius);
+    white-space:nowrap;
+  }
+  .fname{
+    font-size:12.5px; color:var(--paper);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    z-index:2;
+  }
+  .fsize{ display:block; font-size:10.5px; color:var(--paper-dim); margin-top:2px;}
+  select{
+    background:var(--ink);
+    color:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:7px 8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    z-index:2;
+  }
+  .status{ font-size:11px; letter-spacing:1px; z-index:2; text-align:right; min-width:70px; }
+  .status.ok{ color:var(--ok); }
+  .status.err{ color:var(--err); }
+  .remove{
+    background:none; border:none; color:var(--paper-dim); cursor:pointer;
+    font-size:16px; z-index:2; line-height:1;
+    padding:4px;
+  }
+  .remove:hover{ color:var(--err); }
+
+  /* CONTROLS */
+  .controls{
+    margin-top:20px;
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .toggle{
+    display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--paper-dim); letter-spacing:.5px;
+  }
+  .toggle input{ accent-color:var(--safety); width:15px; height:15px; }
+  .btnrow{ display:flex; gap:10px; margin-left:auto; }
+  button.run, button.clear{
+    font-family:'Anton', sans-serif;
+    letter-spacing:2px;
+    font-size:14px;
+    padding:14px 26px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    border:2px solid transparent;
+    transition:transform .08s, box-shadow .15s;
+  }
+  button.run{
+    background:var(--safety);
+    color:var(--ink);
+    box-shadow:0 4px 0 var(--safety-deep);
+  }
+  button.run:hover:not(:disabled){ transform:translateY(-1px); }
+  button.run:active:not(:disabled){ transform:translateY(3px); box-shadow:0 1px 0 var(--safety-deep); }
+  button.run:disabled{ opacity:.35; cursor:not-allowed; box-shadow:none; }
+  button.clear{
+    background:transparent; color:var(--paper-dim); border-color:var(--line);
+  }
+  button.clear:hover{ color:var(--err); border-color:var(--err); }
+
+  .empty-msg{ text-align:center; color:var(--paper-dim); font-size:12px; padding:20px 0; letter-spacing:1px; }
+
+  footer{
+    margin-top:34px; text-align:center; font-size:10.5px; letter-spacing:2px; color:var(--paper-dim);
+    text-transform:uppercase;
+  }
+  .rivet-row{ display:flex; justify-content:space-between; margin-top:6px; opacity:.5; }
+  .rivet{ width:6px; height:6px; border-radius:50%; background:var(--line); box-shadow:inset 0 1px 1px rgba(0,0,0,.6);}
+
+  @media (max-width:560px){
+    .item{ grid-template-columns:1fr; text-align:left; gap:8px; }
+    .status{ text-align:left; }
+    .plate{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hazard-strip"></div>
+  <header>
+    <div class="titleblock">
+      <h1>DÖNÜŞTÜRME<br>HATTI</h1>
+      <div class="subtitle">Otomatik Dosya Format Hattı — Tarayıcıda Çalışır</div>
+    </div>
+    <div class="plate">İSTASYON 01 · AKTİF</div>
+  </header>
+
+  <div class="hopper" id="hopper">
+    <div class="icon">＋ DOSYA YÜKLE</div>
+    <p class="big">Dosyaları buraya sürükle ya da tıkla</p>
+    <p>Görsel ↔ Görsel · Görsel → PDF · PDF → Görsel</p>
+    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.gif,.pdf">
+    <div class="formats-note">DESTEKLENEN GİRİŞ: JPG · PNG · WEBP · BMP · GIF · PDF &nbsp;|&nbsp; ÇIKIŞ: JPG · PNG · WEBP · BMP · PDF</div>
+  </div>
+
+  <div class="bulkbar" id="bulkbar">
+    <div class="label">TOPLU AYAR</div>
+    <div class="bulk-group" id="bulkImageGroup">
+      <span style="font-size:11px;color:var(--paper-dim);">Görseller →</span>
+      <select id="bulkImageSelect">
+        <option value="jpg">JPG</option>
+        <option value="png" selected>PNG</option>
+        <option value="webp">WEBP</option>
+        <option value="bmp">BMP</option>
+        <option value="pdf">PDF</option>
+      </select>
+      <button id="bulkImageApply">TÜMÜNE UYGULA</button>
+    </div>
+    <div class="bulk-group" id="bulkPdfGroup">
+      <span style="font-size:11px;color:var(--paper-dim);">PDF'ler →</span>
+      <select id="bulkPdfSelect">
+        <option value="png" selected>PNG (her sayfa)</option>
+        <option value="jpg">JPG (her sayfa)</option>
+      </select>
+      <button id="bulkPdfApply">TÜMÜNE UYGULA</button>
+    </div>
+    <div class="bulk-count" id="bulkCount"></div>
+  </div>
+
+  <div class="queue" id="queue"></div>
+  <div class="empty-msg" id="emptyMsg">Hat boş — henüz dosya yüklenmedi.</div>
+
+  <div class="controls">
+    <label class="toggle" id="mergeToggleWrap" style="display:none;">
+      <input type="checkbox" id="mergeToggle">
+      Seçili görselleri TEK PDF'de birleştir
+    </label>
+    <div class="btnrow">
+      <button class="clear" id="clearBtn">HATTI TEMİZLE</button>
+      <button class="run" id="runBtn" disabled>▶ DÖNÜŞTÜR</button>
+    </div>
+  </div>
+
+  <footer>
+    Tüm işlemler cihazınızda yapılır — dosya hiçbir sunucuya yüklenmez
+    <div class="rivet-row">
+      <div class="rivet"></div><div class="rivet"></div><div class="rivet"></div><div class="rivet"></div>
+      <div class="rivet"></div><div class="rivet"></div><div class="rivet"></div><div class="rivet"></div>
+    </div>
+  </footer>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const { jsPDF } = window.jspdf;
+
+const IMAGE_EXT = ['jpg','jpeg','png','webp','bmp','gif'];
+const IMAGE_TARGETS = [
+  {v:'jpg', l:'JPG'}, {v:'png', l:'PNG'}, {v:'webp', l:'WEBP'}, {v:'bmp', l:'BMP'}, {v:'pdf', l:'PDF'}
+];
+const PDF_TARGETS = [
+  {v:'png', l:'PNG (her sayfa)'}, {v:'jpg', l:'JPG (her sayfa)'}
+];
+
+let queue = [];
+let idCounter = 0;
+
+const hopper = document.getElementById('hopper');
+const fileInput = document.getElementById('fileInput');
+const queueEl = document.getElementById('queue');
+const emptyMsg = document.getElementById('emptyMsg');
+const runBtn = document.getElementById('runBtn');
+const clearBtn = document.getElementById('clearBtn');
+const mergeToggleWrap = document.getElementById('mergeToggleWrap');
+const mergeToggle = document.getElementById('mergeToggle');
+const bulkbar = document.getElementById('bulkbar');
+const bulkImageGroup = document.getElementById('bulkImageGroup');
+const bulkPdfGroup = document.getElementById('bulkPdfGroup');
+const bulkImageSelect = document.getElementById('bulkImageSelect');
+const bulkPdfSelect = document.getElementById('bulkPdfSelect');
+const bulkCount = document.getElementById('bulkCount');
+
+document.getElementById('bulkImageApply').addEventListener('click', () => {
+  const v = bulkImageSelect.value;
+  queue.forEach(q => { if (q.cat === 'image') q.target = v; });
+  render();
+});
+document.getElementById('bulkPdfApply').addEventListener('click', () => {
+  const v = bulkPdfSelect.value;
+  queue.forEach(q => { if (q.cat === 'pdf') q.target = v; });
+  render();
+});
+
+hopper.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => addFiles(e.target.files));
+
+['dragenter','dragover'].forEach(evt => {
+  hopper.addEventListener(evt, e => { e.preventDefault(); hopper.classList.add('drag'); });
+});
+['dragleave','drop'].forEach(evt => {
+  hopper.addEventListener(evt, e => { e.preventDefault(); hopper.classList.remove('drag'); });
+});
+hopper.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+function extOf(name){
+  const parts = name.split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function categoryOf(file){
+  const ext = extOf(file.name);
+  if (ext === 'pdf' || file.type === 'application/pdf') return 'pdf';
+  if (IMAGE_EXT.includes(ext) || file.type.startsWith('image/')) return 'image';
+  return 'unsupported';
+}
+
+function addFiles(fileList){
+  [...fileList].forEach(file => {
+    const cat = categoryOf(file);
+    if (cat === 'unsupported') return;
+    queue.push({
+      id: 'f' + (idCounter++),
+      file,
+      cat,
+      target: cat === 'image' ? 'png' : 'png',
+      status: 'idle', // idle | working | done | error
+      progress: 0
+    });
+  });
+  fileInput.value = '';
+  render();
+}
+
+function removeItem(id){
+  queue = queue.filter(q => q.id !== id);
+  render();
+}
+
+function fmtSize(bytes){
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1024/1024).toFixed(2) + ' MB';
+}
+
+function render(){
+  emptyMsg.style.display = queue.length ? 'none' : 'block';
+  queueEl.innerHTML = '';
+  queue.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'item' + (item.status === 'done' ? ' done' : item.status === 'error' ? ' error' : '');
+
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.width = item.progress + '%';
+    el.appendChild(bar);
+
+    const badge = document.createElement('div');
+    badge.className = 'badge';
+    badge.textContent = extOf(item.file.name).toUpperCase() || (item.cat === 'pdf' ? 'PDF' : 'IMG');
+    el.appendChild(badge);
+
+    const nameWrap = document.createElement('div');
+    nameWrap.innerHTML = `<div class="fname">${item.file.name}</div><span class="fsize">${fmtSize(item.file.size)}</span>`;
+    el.appendChild(nameWrap);
+
+    const select = document.createElement('select');
+    const targets = item.cat === 'pdf' ? PDF_TARGETS : IMAGE_TARGETS;
+    targets.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.v; opt.textContent = t.l;
+      if (t.v === item.target) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', e => { item.target = e.target.value; updateMergeToggle(); });
+    el.appendChild(select);
+
+    const status = document.createElement('div');
+    status.className = 'status' + (item.status === 'done' ? ' ok' : item.status === 'error' ? ' err' : '');
+    status.textContent = item.status === 'idle' ? 'BEKLİYOR'
+      : item.status === 'working' ? item.progress + '%'
+      : item.status === 'done' ? 'TAMAM ✓'
+      : 'HATA ✕';
+    el.appendChild(status);
+
+    const rm = document.createElement('button');
+    rm.className = 'remove';
+    rm.textContent = '✕';
+    rm.addEventListener('click', () => removeItem(item.id));
+    el.appendChild(rm);
+
+    queueEl.appendChild(el);
+  });
+  runBtn.disabled = queue.length === 0;
+  updateMergeToggle();
+
+  const imgCount = queue.filter(q => q.cat === 'image').length;
+  const pdfCount = queue.filter(q => q.cat === 'pdf').length;
+  bulkbar.classList.toggle('show', queue.length >= 2);
+  bulkImageGroup.style.display = imgCount >= 2 ? 'flex' : 'none';
+  bulkPdfGroup.style.display = pdfCount >= 2 ? 'flex' : 'none';
+  const parts = [];
+  if (imgCount) parts.push(imgCount + ' görsel');
+  if (pdfCount) parts.push(pdfCount + ' pdf');
+  bulkCount.textContent = parts.join(' · ');
+}
+
+function updateMergeToggle(){
+  const imgToPdf = queue.filter(q => q.cat === 'image' && q.target === 'pdf');
+  mergeToggleWrap.style.display = imgToPdf.length >= 2 ? 'flex' : 'none';
+}
+
+clearBtn.addEventListener('click', () => { queue = []; render(); });
+
+/* ---------- CONVERSION HELPERS ---------- */
+
+function loadImageFromFile(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { resolve(img); };
+    img.onerror = () => { reject(new Error('Görsel yüklenemedi')); };
+    img.src = url;
+  });
+}
+
+function canvasFromImage(img){
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  // white background for formats without alpha (jpg/bmp)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+  return canvas;
+}
+
+function canvasToBMPBlob(canvas){
+  const w = canvas.width, h = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.getImageData(0,0,w,h).data;
+  const rowSize = Math.floor((24*w+31)/32)*4;
+  const pixelArraySize = rowSize*h;
+  const fileSize = 54+pixelArraySize;
+  const buffer = new ArrayBuffer(fileSize);
+  const view = new DataView(buffer);
+  view.setUint8(0,0x42); view.setUint8(1,0x4D);
+  view.setUint32(2,fileSize,true);
+  view.setUint32(6,0,true);
+  view.setUint32(10,54,true);
+  view.setUint32(14,40,true);
+  view.setInt32(18,w,true);
+  view.setInt32(22,h,true);
+  view.setUint16(26,1,true);
+  view.setUint16(28,24,true);
+  view.setUint32(30,0,true);
+  view.setUint32(34,pixelArraySize,true);
+  view.setInt32(38,2835,true);
+  view.setInt32(42,2835,true);
+  view.setUint32(46,0,true);
+  view.setUint32(50,0,true);
+  let offset = 54;
+  for (let y=h-1;y>=0;y--){
+    for(let x=0;x<w;x++){
+      const idx = (y*w+x)*4;
+      view.setUint8(offset++, imgData[idx+2]);
+      view.setUint8(offset++, imgData[idx+1]);
+      view.setUint8(offset++, imgData[idx]);
+    }
+    const pad = rowSize - w*3;
+    for(let p=0;p<pad;p++) view.setUint8(offset++,0);
+  }
+  return new Blob([buffer], {type:'image/bmp'});
+}
+
+function canvasToBlobAsync(canvas, mime, quality){
+  return new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+}
+
+async function convertImageToFormat(canvas, target){
+  if (target === 'bmp') return canvasToBMPBlob(canvas);
+  const mimeMap = { jpg:'image/jpeg', png:'image/png', webp:'image/webp' };
+  const mime = mimeMap[target] || 'image/png';
+  const quality = target === 'jpg' ? 0.92 : undefined;
+  return await canvasToBlobAsync(canvas, mime, quality);
+}
+
+function imageToPdfBlob(canvas, format){
+  const w = canvas.width, h = canvas.height;
+  const mmW = w * 0.264583, mmH = h * 0.264583;
+  const orientation = mmW > mmH ? 'l' : 'p';
+  const pdf = new jsPDF({ orientation, unit:'mm', format:[mmW, mmH] });
+  const dataUrl = canvas.toDataURL(format === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+  pdf.addImage(dataUrl, format === 'jpg' ? 'JPEG' : 'PNG', 0, 0, mmW, mmH);
+  return pdf.output('blob');
+}
+
+async function pdfToImages(file, target, onPage){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const results = [];
+  for (let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 2.0 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const blob = await convertImageToFormat(canvas, target);
+    results.push(blob);
+    if (onPage) onPage(p, pdf.numPages);
+  }
+  return results;
+}
+
+function baseName(name){
+  const i = name.lastIndexOf('.');
+  return i === -1 ? name : name.slice(0, i);
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/* ---------- RUN PIPELINE ---------- */
+
+runBtn.addEventListener('click', runConversion);
+
+async function runConversion(){
+  if (!queue.length) return;
+  runBtn.disabled = true;
+  runBtn.textContent = '⚙ İŞLENİYOR...';
+
+  const outputs = []; // { blob, filename }
+  const doMerge = mergeToggle.checked && mergeToggleWrap.style.display !== 'none';
+  const mergeCandidates = queue.filter(q => q.cat === 'image' && q.target === 'pdf');
+  const mergeIds = new Set(doMerge ? mergeCandidates.map(q => q.id) : []);
+  let mergedPdf = null;
+
+  for (const item of queue){
+    item.status = 'working'; item.progress = 5; render();
+    try{
+      if (item.cat === 'image'){
+        const img = await loadImageFromFile(item.file);
+        const canvas = canvasFromImage(img);
+        item.progress = 40; render();
+
+        if (item.target === 'pdf'){
+          if (mergeIds.has(item.id)){
+            const w = canvas.width, h = canvas.height;
+            const mmW = w * 0.264583, mmH = h * 0.264583;
+            const orientation = mmW > mmH ? 'l' : 'p';
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            if (!mergedPdf){
+              mergedPdf = new jsPDF({ orientation, unit:'mm', format:[mmW, mmH] });
+              mergedPdf.addImage(dataUrl, 'JPEG', 0, 0, mmW, mmH);
+            } else {
+              mergedPdf.addPage([mmW, mmH], orientation);
+              mergedPdf.addImage(dataUrl, 'JPEG', 0, 0, mmW, mmH);
+            }
+          } else {
+            const blob = imageToPdfBlob(canvas, 'jpg');
+            outputs.push({ blob, filename: baseName(item.file.name) + '.pdf' });
+          }
+        } else {
+          const blob = await convertImageToFormat(canvas, item.target);
+          outputs.push({ blob, filename: baseName(item.file.name) + '.' + item.target });
+        }
+      } else if (item.cat === 'pdf'){
+        const blobs = await pdfToImages(item.file, item.target, (p, total) => {
+          item.progress = 20 + Math.round((p/total)*70); render();
+        });
+        blobs.forEach((blob, idx) => {
+          const suffix = blobs.length > 1 ? `_sayfa${idx+1}` : '';
+          outputs.push({ blob, filename: baseName(item.file.name) + suffix + '.' + item.target });
+        });
+      }
+      item.status = 'done'; item.progress = 100;
+    } catch(err){
+      console.error(err);
+      item.status = 'error'; item.progress = 100;
+    }
+    render();
+  }
+
+  if (mergedPdf){
+    outputs.push({ blob: mergedPdf.output('blob'), filename: 'birlesik.pdf' });
+  }
+
+  if (outputs.length === 1){
+    downloadBlob(outputs[0].blob, outputs[0].filename);
+  } else if (outputs.length > 1){
+    const zip = new JSZip();
+    const usedNames = new Set();
+    outputs.forEach(o => {
+      let name = o.filename, n = 1;
+      while (usedNames.has(name)){
+        name = baseName(o.filename) + `_${n++}.` + o.filename.split('.').pop();
+      }
+      usedNames.add(name);
+      zip.file(name, o.blob);
+    });
+    const zipBlob = await zip.generateAsync({ type:'blob' });
+    downloadBlob(zipBlob, 'donusturme-hatti.zip');
+  }
+
+  runBtn.disabled = false;
+  runBtn.textContent = '▶ DÖNÜŞTÜR';
+}
+
+render();
+</script>
+</body>
+</html>
