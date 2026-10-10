@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <!-- viewport-fit=cover: Capacitor/Android'de çentik ve gezinme çubuğu alanları için (style.css'te env(safe-area-inset-*) kullanılır) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF6E8" id="themeColor">
+  <title>ScanMagic — Dönüştür, Tara, Paylaş</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (CDN). Capacitor'a aktarırken derlenmiş CSS'e geçmeni öneririm. -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { brand: { orange: '#FF8A1F', purple: '#6D3BF2', lilac: '#A78BFA', cream: '#FFF6E8', ink: '#1E1B4B' } },
+        fontFamily: { sans: ['Poppins', 'system-ui', 'sans-serif'] }
+      } }
+    };
+  </script>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Dönüştürme kütüphaneleri (pdf.js, pdf-lib, Tesseract, JSZip, mammoth, docx, html2canvas, SheetJS,
+       pptxgenjs, heic2any, UTIF) ihtiyaç duyuldukça app.js tarafından tembel (lazy) yüklenir. -->
+  <script defer src="app.js"></script>
+</head>
+
+<body class="font-sans antialiased">
+<div id="app">
+
+  <!-- 1) KARŞILAMA EKRANI -->
+  <section class="scr center on" id="splash" aria-label="Karşılama">
+    <div class="logo big"><i>✦</i><span>ScanMagic</span></div>
+    <p class="mut" style="margin-top:14px">Dijital dosyalarını,<br>gerçek bir belgeye dönüştür!</p>
+    <div class="bar" style="width:96px;margin-top:44px"><div id="sbar"></div></div>
+  </section>
+
+  <!-- 2) ANA SAYFA -->
+  <section class="scr tab" id="home">
+    <div class="top between">
+      <div class="logo"><i>✦</i><span>ScanMagic</span></div>
+      <button class="icon-btn" data-go="sets" aria-label="Ayarlar">👤</button>
+    </div>
+    <h1 class="h1">Merhaba! 👋</h1>
+    <p class="mut" style="margin-bottom:16px">Hemen bir dosya seç ve dönüştürmeye başla.</p>
+
+    <button class="btn btn-or hero" id="pickBtn">
+      <span class="ic">📄</span><b class="hero-t">Dosya Seç</b>
+      <small>PDF, Word, Excel, PowerPoint, resim, metin… birden fazla dosya seçebilirsin</small>
+    </button>
+
+    <div class="row2">
+      <button class="tile t-pu" id="camBtn"><span class="ic">📷</span><b>Kamera ile Tara</b><small>Belgeyi fotoğraf olarak çek</small></button>
+      <button class="tile t-soft" data-go="docs"><span class="ic">📁</span><b>Son İşlemler</b><small>Daha önce dönüştürdüğün dosyalar</small></button>
+    </div>
+
+    <h2 class="h2">Araçlar</h2>
+    <div class="tools" id="tools"></div>
+
+    <p class="mut small" style="margin:16px 0 8px">
+      Desteklenen: PDF · DOCX · PPTX · XLSX/XLS/ODS · CSV · JSON · TXT · MD · HTML · RTF · JPG · PNG · WEBP · GIF · BMP · SVG · HEIC · TIFF.
+      Dosyaların cihazından çıkmaz; tüm işlemler tarayıcıda yapılır.
+    </p>
+  </section>
+
+  <!-- 3) ÖNİZLEME / ÇALIŞMA ALANI -->
+  <section class="scr" id="work">
+    <div class="top">
+      <button class="icon-btn" data-go="home" aria-label="Geri">‹</button>
+      <h2 class="h2" style="margin:0">Önizleme</h2>
+      <span class="mut small" id="wCount" style="margin-left:auto"></span>
+    </div>
+
+    <div class="pvwrap">
+      <canvas id="pv" aria-label="Sayfa önizlemesi"></canvas>
+      <span class="badge" id="pvBadge">1/1</span>
+      <span class="busy hidden" id="busy" aria-live="polite">İşleniyor…</span>
+    </div>
+
+    <div class="thumbs" id="thumbs" role="listbox" aria-label="Sayfalar"></div>
+
+    <div class="ptools">
+      <button class="icon-btn" id="rotL" aria-label="Sola döndür">⟲</button>
+      <button class="icon-btn" id="rotR" aria-label="Sağa döndür">⟳</button>
+      <button class="icon-btn" id="mvL" aria-label="Sola taşı">◀</button>
+      <button class="icon-btn" id="mvR" aria-label="Sağa taşı">▶</button>
+      <button class="icon-btn wide" id="togPage">Hariç tut</button>
+      <button class="icon-btn wide" id="origBtn">Orijinal</button>
+    </div>
+
+    <div class="rangebar">
+      <input id="rangeIn" class="inp" placeholder="Sayfa aralığı: 1-3, 5, 8-" inputmode="text" aria-label="Sayfa aralığı">
+      <button class="chip on" id="rangeBtn">Uygula</button>
+    </div>
+
+    <div class="row2" style="margin-top:12px">
+      <button class="btn btn-out" id="addMore">＋ Dosya ekle</button>
+      <button class="btn btn-out" id="addCam">📷 Kamera</button>
+    </div>
+
+    <!-- Hızlı işlemler (mockup'taki 3 buton) -->
+    <button class="btn btn-or" id="qFx"><span class="ic">✨</span><span><b>Doku Ekle</b><small>Tarayıcıdan geçmiş gibi gerçekçi bir görünüm kazandır</small></span><span class="ar">›</span></button>
+    <button class="btn btn-pu" id="qPdf"><span class="ic">📑</span><span><b>PDF'e Dönüştür</b><small>Hızlı ve kolay şekilde PDF'e dönüştür</small></span><span class="ar">›</span></button>
+    <button class="btn btn-nv" id="qOcr"><span class="ic">🔠</span><span><b>Metni Çıkar (OCR)</b><small>Metni düzenlenebilir hale getir</small></span><span class="ar">›</span></button>
+
+    <!-- Tarayıcı efekti paneli -->
+    <div class="card" id="fxCard">
+      <div class="between">
+        <div><b>Tarayıcı Efekti</b><div class="mut small">Eğrilik, gren, bulanıklık, cilt gölgesi</div></div>
+        <button class="sw" id="fxOn" role="switch" aria-checked="false" aria-label="Tarayıcı efekti"></button>
+      </div>
+      <div id="fxBody" class="hidden">
+        <label class="sl"><span>Kontrast / Eşik</span><output data-fxout="threshold"></output>
+          <input type="range" data-fx="threshold" min="60" max="220" step="1"></label>
+        <label class="sl"><span>Gren (gürültü)</span><output data-fxout="noise"></output>
+          <input type="range" data-fx="noise" min="0" max="15" step="0.5"></label>
+        <label class="sl"><span>Bulanıklık</span><output data-fxout="blur"></output>
+          <input type="range" data-fx="blur" min="0" max="3" step="0.1"></label>
+        <label class="sl"><span>Tarama kalitesi</span><output data-fxout="dpi"></output>
+          <input type="range" data-fx="dpi" min="100" max="200" step="10"></label>
+        <div class="row2" style="align-items:end">
+          <label class="sl"><span>Cilt gölgesi</span>
+            <select class="inp" data-fx="shadowSide"><option value="left">Sol kenar</option><option value="right">Sağ kenar</option><option value="none">Yok</option></select></label>
+          <label class="sl"><span>Gölge</span><output data-fxout="shadowStrength"></output>
+            <input type="range" data-fx="shadowStrength" min="0" max="60" step="1"></label>
+        </div>
+        <div class="row2">
+          <button class="btn btn-out" id="fxReroll">🎲 Yenile</button>
+          <button class="btn btn-out" id="fxReset">↺ Varsayılan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Format seçimi (her formattan her formata) -->
+    <h2 class="h2">Dönüştür</h2>
+    <div id="fmtGrid"></div>
+    <div id="optBox" class="card"></div>
+    <button class="btn btn-pu" id="goBtn" style="justify-content:center;margin-top:12px"><b id="goLabel">Dönüştür</b></button>
+    <div style="height:24px"></div>
+  </section>
+
+  <!-- 4) DÖNÜŞTÜRME AŞAMASI -->
+  <section class="scr center" id="conv">
+    <div class="ring"><span>📄</span></div>
+    <h2 class="h2" style="margin:0">Dönüştürülüyor...</h2>
+    <p class="mut" id="cText" style="margin:6px 0 4px">Dosyanız titizlikle hazırlanıyor. Lütfen bekleyin.</p>
+    <div class="bar" style="width:100%"><div id="cBar"></div></div>
+    <p class="mut small" style="align-self:flex-end" id="cPct">%0</p>
+    <button class="btn btn-out" id="cancel" style="margin-top:24px;justify-content:center">İptal Et</button>
+  </section>
+
+  <!-- 5) SONUÇ EKRANI -->
+  <section class="scr" id="res">
+    <div class="top"><button class="icon-btn" data-go="home" aria-label="Ana sayfa">‹</button></div>
+    <div class="sheet" id="rPrev"></div>
+    <div class="ok"><i>✓</i><div><b>Dönüştürme tamamlandı!</b><p class="mut small" id="rMsg"></p></div></div>
+    <div class="card small" id="rInfo"></div>
+    <button class="btn btn-pu" id="rDl" style="justify-content:center">⬇ İndir</button>
+    <button class="btn btn-out" id="rView">👁 Görüntüle</button>
+    <button class="btn btn-out" id="rShare">⤴ Paylaş</button>
+    <button class="btn btn-out" id="rAgain">＋ Başka Dosya Dönüştür</button>
+  </section>
+
+  <!-- 6) BELGELERİM -->
+  <section class="scr tab" id="docs">
+    <div class="top between"><h1 class="h1" style="margin:0">Belgelerim</h1><span aria-hidden="true">🔍</span></div>
+    <input id="dSearch" class="inp" placeholder="Belgelerde ara…" aria-label="Ara">
+    <div class="chips" id="dChips"></div>
+    <div id="dList"></div>
+  </section>
+
+  <!-- 7) FAVORİLER -->
+  <section class="scr tab" id="favs">
+    <h1 class="h1">Favoriler</h1>
+    <div id="fList" style="display:flex;flex-direction:column;flex:1"></div>
+  </section>
+
+  <!-- 8) AYARLAR -->
+  <section class="scr tab" id="sets">
+    <h1 class="h1">Ayarlar</h1>
+    <div class="set" id="sList"></div>
+  </section>
+
+  <button class="fab" id="fab" aria-label="Kamera ile tara">⛶</button>
+  <nav id="nav" aria-label="Ana gezinme">
+    <button data-go="home"><span>🏠</span>Ana Sayfa</button>
+    <button data-go="docs"><span>📁</span>Belgeler</button>
+    <button data-go="favs"><span>⭐</span>Favoriler</button>
+    <button data-go="sets"><span>⚙️</span>Ayarlar</button>
+  </nav>
+
+  <!-- Gizli dosya girişleri -->
+  <input id="fi" type="file" multiple hidden
+         accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.svg,.heic,.heif,.tif,.tiff,.docx,.pptx,.txt,.md,.markdown,.html,.htm,.rtf,.csv,.tsv,.xlsx,.xls,.ods,.json">
+  <input id="ci" type="file" accept="image/*" capture="environment" hidden>
+
+  <!-- Yükleme katmanı ve bildirim -->
+  <div id="loader" class="loader hidden" role="alert" aria-live="assertive">
+    <div class="loader-box"><div class="spin"></div><p id="loaderText">İşleniyor…</p></div>
+  </div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+</div>
+</body>
+</html>
